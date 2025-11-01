@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.sqlite3
+
+# Virtual environments
+.venv/
+venv/
+
+# Django
+staticfiles/
+
+# Environment
+.env
+*.env
+
+# Terraform
+**/.terraform/
+**/.terraform.lock.hcl
+
+# macOS
+.DS_Store

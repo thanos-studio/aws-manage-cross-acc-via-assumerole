@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AssumeRole API Docs</title>
+    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@4/swagger-ui.css" />
+    <style>
+      body {
+        margin: 0;
+        background: #0f172a;
+      }
+      #swagger-ui {
+        background: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="swagger-ui"></div>
+    <script src="https://unpkg.com/swagger-ui-dist@4/swagger-ui-bundle.js"></script>
+    <script>
+      window.addEventListener('load', () => {
+        SwaggerUIBundle({
+          url: "{{ schema_url }}",
+          dom_id: '#swagger-ui',
+          presets: [SwaggerUIBundle.presets.apis],
+          layout: 'BaseLayout',
+        });
+      });
+    </script>
+  </body>
+</html>

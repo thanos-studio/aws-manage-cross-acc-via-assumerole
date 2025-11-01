@@ -1,0 +1,53 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFront distribution for AssumeRole onboarding
+Parameters:
+  OriginBucket:
+    Type: String
+    Description: S3 bucket backing the CloudFront distribution
+  ExternalId:
+    Type: String
+    Description: Identifier tying the distribution back to the onboarding org
+  ViewerProtocolPolicy:
+    Type: String
+    AllowedValues:
+      - allow-all
+      - redirect-to-https
+      - https-only
+    Default: redirect-to-https
+Resources:
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub 'Provisioned via AssumeRole portal for ${ExternalId}'
+        DefaultRootObject: index.html
+        Origins:
+          - Id: !Ref OriginBucket
+            DomainName: !Join ['', [!Ref OriginBucket, '.s3.amazonaws.com']]
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+        DefaultCacheBehavior:
+          TargetOriginId: !Ref OriginBucket
+          ViewerProtocolPolicy: !Ref ViewerProtocolPolicy
+          AllowedMethods:
+            - GET
+            - HEAD
+          CachedMethods:
+            - GET
+            - HEAD
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Metadata:
+      ExternalId: !Ref ExternalId
+Outputs:
+  DistributionId:
+    Description: CloudFront distribution identifier
+    Value: !Ref Distribution
+  ExternalId:
+    Description: External identifier used during provisioning
+    Value: !Ref ExternalId
