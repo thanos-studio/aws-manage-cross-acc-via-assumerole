@@ -5,7 +5,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import List, Optional
 
-from pydantic import AnyHttpUrl, Field, RootModel
+from pydantic import AnyHttpUrl, Field, RootModel, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     )
 
     provider_account_id: str = Field(default="628897991799")
-    provider_readonly_role: str = Field(default="SigReadOnly")
+    provider_readonly_role: str = Field(default="SunrinPowerUser")
     aws_region: str = Field(default="us-east-1")
     template_bucket: str = Field(
         ..., description="S3 bucket where CloudFormation templates are stored via public pre-signed URLs."
@@ -59,6 +59,10 @@ class Settings(BaseSettings):
     rate_limit_window_seconds: int = Field(default=60)
     rate_limit_max_requests: int = Field(default=10)
     idempotency_ttl_seconds: int = Field(default=3600)
+    django_debug: bool = Field(
+        default=False,
+        description="Mirror Django's DEBUG flag so both settings derive from the same env var.",
+    )
 
     def decode_encryption_key(self) -> bytes:
         import base64
@@ -69,6 +73,17 @@ class Settings(BaseSettings):
         import base64
 
         return base64.b64decode(self.hmac_key)
+
+    @model_validator(mode="after")
+    def validate_crypto_material(self) -> "Settings":
+        encryption_len = len(self.decode_encryption_key())
+        if encryption_len not in {16, 24, 32}:
+            raise ValueError("SIGMOID_ENCRYPTION_KEY must decode to 16, 24, or 32 bytes (128/192/256-bit).")
+
+        if len(self.decode_hmac_key()) < 32:
+            raise ValueError("SIGMOID_HMAC_KEY must decode to at least 32 bytes.")
+
+        return self
 
 
 @lru_cache

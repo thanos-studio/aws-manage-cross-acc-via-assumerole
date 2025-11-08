@@ -8,9 +8,9 @@ import os
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "django-insecure-change-me")
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "django--change-me")
 
-DEBUG = os.environ.get("DJANGO_DEBUG", "0") == "1"
+DEBUG = os.environ.get("DJANGO_DEBUG", "0") == "0"
 
 ALLOWED_HOSTS: list[str] = []
 if host_env := os.environ.get("DJANGO_ALLOWED_HOSTS"):

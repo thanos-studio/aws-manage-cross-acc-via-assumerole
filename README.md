@@ -42,6 +42,11 @@ Copy `.env.sample` to `.env` and replace the placeholder values:
 ```bash
 cp .env.sample .env
 # edit .env with a 32-byte base64 AES key, HMAC key, bucket name, etc.
+python - <<'PY'
+import os, base64
+print("SIGMOID_ENCRYPTION_KEY=", base64.b64encode(os.urandom(32)).decode())
+print("SIGMOID_HMAC_KEY=", base64.b64encode(os.urandom(32)).decode())
+PY
 ```
 
 Key settings (all prefixed with `SIGMOID_`):
@@ -51,6 +56,7 @@ Key settings (all prefixed with `SIGMOID_`):
 - `TEMPLATE_BUCKET` / `TEMPLATE_KEY` – S3 location of `cloudformation/stack.yaml`.
 - `AWS_REGION` – region for S3 pre-signed URLs, STS calls, and CloudFormation console links.
 - `PROVIDER_ACCOUNT_ID` – Sigmoid’s AWS account (default `628897991799`).
+- `ENCRYPTION_KEY` and `HMAC_KEY` **must** decode to at least 32 bytes; AES requires 128/192/256-bit keys.
 
 ## Installing dependencies
 
@@ -95,8 +101,8 @@ output from `/api/integrate`.
 
 The CloudFormation template lives under `cloudformation/stack.yaml`. Upload the file referenced in
 `SIGMOID_TEMPLATE_BUCKET` / `SIGMOID_TEMPLATE_KEY` so the API can generate download links. The
-template provisions a single cross-account role (`SigReadOnly`) with the AWS managed
-`ReadOnlyAccess` policy and also launches the validation nested stack used to confirm the
+template provisions a single cross-account role (`SunrinPowerUser`) with the AWS managed
+`PowerUserAccess` policy and also launches the validation nested stack used to confirm the
 deployment. The assume-role session duration remains 3600 seconds.
 
 ## Running tests

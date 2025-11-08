@@ -3,11 +3,13 @@ from __future__ import annotations
 import json
 import logging
 from json import JSONDecodeError
+import inspect
 from typing import Any
 
 import boto3
 from botocore.exceptions import ClientError
-from django.http import HttpRequest, JsonResponse, HttpResponseNotAllowed
+from django.http import HttpRequest, JsonResponse, HttpResponseNotAllowed, HttpResponse
+from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
 from pydantic import ValidationError
 
@@ -31,6 +33,32 @@ from managed_iam.services.validation import ValidationWebhookService
 
 
 logger = logging.getLogger("managed_iam.audit")
+SWAGGER_UI_TEMPLATE = """<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Sigmoid Managed IAM API Docs</title>
+    <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
+    <style>
+      body {{ margin: 0; padding: 0; }}
+    </style>
+  </head>
+  <body>
+    <div id="swagger-ui"></div>
+    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+    <script>
+      window.onload = function () {{
+        window.ui = SwaggerUIBundle({{
+          url: "{spec_url}",
+          dom_id: "#swagger-ui",
+          presets: [SwaggerUIBundle.presets.apis],
+          layout: "BaseLayout",
+        }});
+      }};
+    </script>
+  </body>
+</html>
+"""
 
 
 def _json_response(data: Any, *, status: int = 200) -> JsonResponse:
@@ -42,8 +70,17 @@ def _json_error(detail: Any, *, status: int) -> JsonResponse:
     return _json_response(payload, status=status)
 
 
+async def _read_body(request: HttpRequest) -> bytes:
+    body = request.body
+    if inspect.isawaitable(body):
+        body = await body
+    if isinstance(body, str):
+        body = body.encode("utf-8")
+    return body or b""
+
+
 async def _parse_json_body(request: HttpRequest) -> Any:
-    body = await request.aread()
+    body = await _read_body(request)
     if not body:
         return {}
     try:
@@ -66,6 +103,24 @@ async def health(request: HttpRequest) -> JsonResponse:
             "version": get_version(),
         }
     )
+
+
+async def openapi_document(request: HttpRequest) -> JsonResponse:
+    if request.method != "GET":
+        return HttpResponseNotAllowed(["GET"])
+    from managed_iam_app.openapi import build_openapi_schema
+
+    base_url = request.build_absolute_uri("/")
+    spec = build_openapi_schema(server_url=base_url.rstrip("/"))
+    return _json_response(spec)
+
+
+async def swagger_ui(request: HttpRequest) -> HttpResponse:
+    if request.method != "GET":
+        return HttpResponseNotAllowed(["GET"])
+    spec_url = request.build_absolute_uri(reverse("openapi-json"))
+    html = SWAGGER_UI_TEMPLATE.format(spec_url=spec_url)
+    return HttpResponse(html, content_type="text/html")
 
 
 @csrf_exempt
@@ -346,7 +401,7 @@ async def validation_webhook(request: HttpRequest) -> JsonResponse:
         return HttpResponseNotAllowed(["POST"])
 
     headers = {key.lower(): value for key, value in request.headers.items()}
-    body = await request.aread()
+    body = await _read_body(request)
     service = ValidationWebhookService()
     try:
         result = await service.process_webhook(headers=headers, body=body)
