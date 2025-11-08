@@ -1,0 +1,60 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Sigmoid Managed IAM cross-account access template
+
+Parameters:
+  OrganizationName:
+    Type: String
+    Description: Name of the Sigmoid customer organisation (no spaces).
+    MinLength: 3
+    MaxLength: 32
+    AllowedPattern: '^[A-Za-z0-9-_]{3,32}$'
+  ExternalId:
+    Type: String
+    Description: ExternalId provided by Sigmoid (32-64 char random string)
+    MinLength: 32
+    MaxLength: 64
+    NoEcho: true
+  SigmoidApiKey:
+    Type: String
+    Description: API key issued by Sigmoid during organisation registration.
+    NoEcho: true
+Resources:
+  SigmoidReadOnlyRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: SigReadOnly
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: 'arn:aws:iam::628897991799:root'
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                sts:ExternalId: !Ref ExternalId
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/ReadOnlyAccess
+
+  SigmoidValidationStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - SigmoidReadOnlyRole
+    Properties:
+      TemplateURL: 'https://sigmoid-iam.s3.ap-northeast-2.amazonaws.com/validation-stack.yaml'
+      TimeoutInMinutes: 10
+      Parameters:
+        OrganizationName: !Ref OrganizationName
+        ApiKey: !Ref SigmoidApiKey
+
+Outputs:
+  SigmoidReadOnlyRoleArn:
+    Description: ARN for the Sigmoid read-only role
+    Value: !GetAtt SigmoidReadOnlyRole.Arn
+  DeploymentRegion:
+    Description: Region this template was deployed in
+    Value: !Ref AWS::Region
+  DeploymentAccountId:
+    Description: Account ID where this template was deployed
+    Value: !Ref AWS::AccountId

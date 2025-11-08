@@ -1,0 +1,2 @@
+"""Managed IAM Django application."""
+
