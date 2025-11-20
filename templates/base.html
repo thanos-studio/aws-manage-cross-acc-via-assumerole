@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sunrin Managed IAM Portal</title>
+  <style>
+    :root {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background-color: #f6f7fb;
+      color: #1b1f24;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      background: linear-gradient(180deg, #f7f9fc 0%, #eff2f8 100%);
+    }
+    header {
+      background: #0d1c2e;
+      color: #fff;
+      padding: 1.5rem 2rem;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.5rem;
+    }
+    main {
+      padding: 2rem;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+      margin-bottom: 1.5rem;
+    }
+    h2 {
+      margin-top: 0;
+    }
+    form .field {
+      margin-bottom: 1rem;
+    }
+    label {
+      display: block;
+      margin-bottom: 0.3rem;
+      font-weight: 600;
+    }
+    input[type="text"],
+    input[type="number"],
+    textarea {
+      width: 100%;
+      padding: 0.6rem 0.8rem;
+      border-radius: 8px;
+      border: 1px solid #d0d6e0;
+      font-size: 0.95rem;
+      font-family: inherit;
+      background-color: #fdfdfd;
+    }
+    textarea {
+      resize: vertical;
+    }
+    button {
+      border: none;
+      border-radius: 8px;
+      padding: 0.6rem 1.2rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: #0f62fe;
+      color: #fff;
+      box-shadow: 0 5px 15px rgba(15, 98, 254, 0.3);
+    }
+    button.secondary {
+      background: #627d98;
+      box-shadow: none;
+    }
+    .alert {
+      border-radius: 8px;
+      padding: 0.8rem 1rem;
+      margin-bottom: 0.75rem;
+      font-weight: 500;
+    }
+    .alert.success { background: #d1fae5; color: #065f46; }
+    .alert.error { background: #fee2e2; color: #991b1b; }
+    .alert.info { background: #e0f2fe; color: #0c4a6e; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 0.6rem;
+      border-bottom: 1px solid #e2e8f0;
+      font-size: 0.9rem;
+    }
+    code, pre {
+      background: #0d1117;
+      color: #e2e8f0;
+      padding: 0.6rem;
+      border-radius: 8px;
+      display: block;
+      overflow-x: auto;
+      font-size: 0.85rem;
+    }
+    .actions {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-top: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Sunrin Managed IAM Portal</h1>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

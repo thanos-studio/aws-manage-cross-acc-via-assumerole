@@ -8,6 +8,7 @@ from .sts import STSService
 from .validation import ValidationWebhookService
 from .idempotency import IdempotencyService, IdempotencyError
 from .ratelimit import RateLimiter, RateLimitExceeded
+from .workload import WorkloadStackService
 
 __all__ = [
     "UserService",
@@ -20,4 +21,5 @@ __all__ = [
     "IdempotencyError",
     "RateLimiter",
     "RateLimitExceeded",
+    "WorkloadStackService",
 ]

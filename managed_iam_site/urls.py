@@ -12,5 +12,6 @@ urlpatterns = [
     path("openapi.json", managed_views.openapi_document, name="openapi-json"),
     path("docs", managed_views.swagger_ui, name="swagger-ui"),
     path("docs/", managed_views.swagger_ui),
+    path("", managed_views.portal, name="portal"),
     path("api/", include("managed_iam_app.urls")),
 ]

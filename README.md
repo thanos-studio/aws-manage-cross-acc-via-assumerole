@@ -79,6 +79,18 @@ issues a new operator identity.
 
 You can also start the server with `python -m managed_iam`, which proxies to the Django dev server.
 
+### HTML operator portal
+
+The root path (`/`) exposes a lightweight HTML console where operators can:
+
+- Issue new `user_id` values and register organisations without calling the JSON APIs manually.
+- Generate CloudFormation console links/CLI scripts used to connect customer accounts.
+- Inspect validation status, connected account metadata, and workload deployment state for a selected organisation.
+- Deploy, update, or delete the reference workload stack defined in `cloudformation/workload-stack.yaml`
+  directly from the UI (the app assumes the customer's `SunrinPowerUser` role to call CloudFormation).
+
+See `docs/deploy-workload.md` if you prefer running the workload deployment via CLI.
+
 ## Endpoint summary
 
 | Method & Path                        | Description                                                                 |

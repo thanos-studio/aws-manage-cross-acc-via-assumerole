@@ -8,11 +8,21 @@ from typing import Any
 
 import boto3
 from botocore.exceptions import ClientError
+from asgiref.sync import async_to_sync
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.http import HttpRequest, JsonResponse, HttpResponseNotAllowed, HttpResponse
+from django.shortcuts import render
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
 from pydantic import ValidationError
 
+from managed_iam_app.forms import (
+    OrgLookupForm,
+    OrgRegisterForm,
+    UserCreateForm,
+    WorkloadDeleteForm,
+    WorkloadDeployForm,
+)
 from managed_iam.schemas.integrate import IntegrationRequest, IntegrationResponse
 from managed_iam.schemas.orgs import OrgRegisterRequest, OrgRegisterResponse
 from managed_iam.schemas.sts import CredentialsRequest, CredentialsResponse
@@ -30,6 +40,7 @@ from managed_iam.services.orgs import OrganisationService
 from managed_iam.services.sts import STSService
 from managed_iam.services.users import UserService
 from managed_iam.services.validation import ValidationWebhookService
+from managed_iam.services.workload import WorkloadStackService, WorkloadStatus, WorkloadActionResult
 
 
 logger = logging.getLogger("managed_iam.audit")
@@ -121,6 +132,156 @@ async def swagger_ui(request: HttpRequest) -> HttpResponse:
     spec_url = request.build_absolute_uri(reverse("openapi-json"))
     html = SWAGGER_UI_TEMPLATE.format(spec_url=spec_url)
     return HttpResponse(html, content_type="text/html")
+
+
+def portal(request: HttpRequest) -> HttpResponse:
+    """HTML operator console for onboarding and workload deployment."""
+
+    user_service = UserService()
+    org_service = OrganisationService()
+    integration_service = IntegrationService()
+    workload_service = WorkloadStackService()
+
+    alerts: list[dict[str, str]] = []
+    created_user_id: str | None = None
+    registration_result: OrgRegisterResponse | None = None
+    selected_org: str | None = None
+    integration_links = None
+    org_details: dict[str, Any] | None = None
+    stack_status: WorkloadStatus | None = None
+    workload_result: WorkloadActionResult | None = None
+
+    lookup_form = OrgLookupForm(request.GET or None)
+    if lookup_form.is_bound and lookup_form.is_valid():
+        selected_org = lookup_form.cleaned_data["org_name"]
+
+    user_form = UserCreateForm()
+    register_form = OrgRegisterForm()
+    deploy_form: WorkloadDeployForm | None = None
+    delete_form: WorkloadDeleteForm | None = None
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "create_user":
+            user_form = UserCreateForm(request.POST)
+            if user_form.is_valid():
+                try:
+                    metadata = user_form.metadata_dict()
+                except DjangoValidationError as exc:
+                    user_form.add_error("metadata", exc)
+                else:
+                    record = async_to_sync(user_service.create_user)(metadata=metadata)
+                    created_user_id = record.user_id
+                    alerts.append({"level": "success", "message": f"Created user_id {record.user_id}."})
+        elif action == "register_org":
+            register_form = OrgRegisterForm(request.POST)
+            if register_form.is_valid():
+                user_id = register_form.cleaned_data["user_id"]
+                org_name = register_form.cleaned_data["org_name"]
+                exists = async_to_sync(user_service.ensure_user)(user_id)
+                if not exists:
+                    register_form.add_error("user_id", "User not found. Create it first.")
+                else:
+                    try:
+                        result = async_to_sync(org_service.register_org)(org_name=org_name, owner_user_id=user_id)
+                    except ValueError as exc:
+                        register_form.add_error("org_name", str(exc))
+                    else:
+                        registration_result = OrgRegisterResponse(
+                            org_name=result.org_name,
+                            api_key=result.api_key,
+                            external_id=result.external_id,
+                        )
+                        alerts.append({"level": "success", "message": f"Organisation {result.org_name} registered."})
+                        selected_org = result.org_name
+        elif action == "deploy_workload":
+            deploy_form = WorkloadDeployForm(request.POST)
+            if deploy_form.is_valid():
+                selected_org = deploy_form.cleaned_data["org_name"]
+                parameters = {
+                    "EnvironmentName": deploy_form.cleaned_data["environment_name"],
+                    "BastionKeyPairName": deploy_form.cleaned_data["bastion_key_pair"],
+                    "BastionAllowedCidr": deploy_form.cleaned_data["bastion_allowed_cidr"],
+                    "DynamoTableName": deploy_form.cleaned_data["dynamo_table_name"],
+                }
+                desired = deploy_form.cleaned_data.get("asg_desired_capacity")
+                if desired:
+                    parameters["AsgDesiredCapacity"] = desired
+                try:
+                    workload_result = async_to_sync(workload_service.deploy_stack)(
+                        org_name=selected_org,
+                        parameters=parameters,
+                    )
+                    alerts.append({"level": "success", "message": workload_result.message})
+                except (ValueError, PermissionError, ClientError) as exc:
+                    deploy_form.add_error(None, str(exc))
+        elif action == "delete_workload":
+            delete_form = WorkloadDeleteForm(request.POST)
+            if delete_form.is_valid():
+                selected_org = delete_form.cleaned_data["org_name"]
+                try:
+                    workload_result = async_to_sync(workload_service.delete_stack)(org_name=selected_org)
+                    alerts.append({"level": "info", "message": workload_result.message})
+                except (ValueError, PermissionError, ClientError) as exc:
+                    delete_form.add_error(None, str(exc))
+
+    if request.method != "GET" or not lookup_form.is_bound or not lookup_form.is_valid():
+        lookup_form = OrgLookupForm(initial={"org_name": selected_org} if selected_org else None)
+
+    if selected_org:
+        record = async_to_sync(org_service.get_org)(selected_org)
+        if record:
+            org_details = {
+                "org_name": record.org_name,
+                "owner_user_id": record.owner_user_id,
+                "validated": record.validation_status,
+                "validation_updated_at": record.validation_updated_at.isoformat() if record.validation_updated_at else None,
+                "account_id": record.account_id,
+                "account_partition": record.account_partition,
+                "account_tags": record.account_tags or {},
+            }
+            try:
+                integration_links = async_to_sync(integration_service.build_links)(org_name=record.org_name)
+            except ValueError as exc:
+                alerts.append({"level": "error", "message": str(exc)})
+
+            if not deploy_form:
+                default_env = f"{record.org_name}-prod"
+                deploy_form = WorkloadDeployForm(
+                    initial={
+                        "org_name": record.org_name,
+                        "environment_name": default_env,
+                        "bastion_allowed_cidr": "0.0.0.0/0",
+                        "dynamo_table_name": f"{record.org_name}AppTable",
+                    }
+                )
+            if not delete_form:
+                delete_form = WorkloadDeleteForm(initial={"org_name": record.org_name})
+
+            if record.validation_status and record.account_id:
+                try:
+                    stack_status = async_to_sync(workload_service.describe_stack)(record.org_name)
+                except (ValueError, PermissionError, ClientError) as exc:
+                    alerts.append({"level": "error", "message": str(exc)})
+        else:
+            alerts.append({"level": "error", "message": f"Organisation '{selected_org}' not found."})
+
+    context = {
+        "user_form": user_form,
+        "register_form": register_form,
+        "lookup_form": lookup_form,
+        "deploy_form": deploy_form,
+        "delete_form": delete_form,
+        "alerts": alerts,
+        "created_user_id": created_user_id,
+        "registration_result": registration_result,
+        "selected_org": selected_org,
+        "org_details": org_details,
+        "integration_links": integration_links,
+        "stack_status": stack_status,
+        "workload_result": workload_result,
+    }
+    return render(request, "portal.html", context)
 
 
 @csrf_exempt

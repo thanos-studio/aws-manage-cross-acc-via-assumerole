@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block content %}
+  {% if alerts %}
+    {% for alert in alerts %}
+      <div class="alert {{ alert.level }}">{{ alert.message }}</div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="card">
+    <h2>1. Create operator identity</h2>
+    <p>Generate a new <code>user_id</code> for Sunrin operators. Optional metadata is stored alongside the identity.</p>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="create_user">
+      {% for error in user_form.non_field_errors %}
+        <div class="alert error">{{ error }}</div>
+      {% endfor %}
+      {% for field in user_form %}
+        {% if field.is_hidden %}
+          {{ field }}
+        {% else %}
+          <div class="field">
+            {{ field.label_tag }}
+            {{ field }}
+            {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+            {% for error in field.errors %}
+              <div class="alert error">{{ error }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endfor %}
+      <button type="submit">Create user</button>
+    </form>
+    {% if created_user_id %}
+      <p><strong>New user_id:</strong> <code>{{ created_user_id }}</code></p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>2. Register customer account</h2>
+    <p>Associate an organisation name with an operator. The generated API key + ExternalId are shown once.</p>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="register_org">
+      {% for error in register_form.non_field_errors %}
+        <div class="alert error">{{ error }}</div>
+      {% endfor %}
+      {% for field in register_form %}
+        <div class="field">
+          {{ field.label_tag }}
+          {{ field }}
+          {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+          {% for error in field.errors %}
+            <div class="alert error">{{ error }}</div>
+          {% endfor %}
+        </div>
+      {% endfor %}
+      <button type="submit">Register organisation</button>
+    </form>
+    {% if registration_result %}
+      <div class="alert info">
+        <strong>Store securely:</strong>
+        <div>Org: <code>{{ registration_result.org_name }}</code></div>
+        <div>API Key: <code>{{ registration_result.api_key }}</code></div>
+        <div>ExternalId: <code>{{ registration_result.external_id }}</code></div>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>3. Connected account overview</h2>
+    <form method="get" style="margin-bottom:1rem;">
+      {% for field in lookup_form %}
+        <div class="field">
+          {{ field.label_tag }}
+          {{ field }}
+          {% for error in field.errors %}
+            <div class="alert error">{{ error }}</div>
+          {% endfor %}
+        </div>
+      {% endfor %}
+      <button type="submit" class="secondary">Load organisation</button>
+    </form>
+    {% if selected_org and not org_details %}
+      <p>No data for <code>{{ selected_org }}</code>.</p>
+    {% endif %}
+
+    {% if org_details %}
+      <table>
+        <tr><th>Organisation</th><td>{{ org_details.org_name }}</td></tr>
+        <tr><th>Owner user_id</th><td>{{ org_details.owner_user_id }}</td></tr>
+        <tr><th>Validated</th><td>{{ org_details.validated }}</td></tr>
+        <tr><th>Validation updated</th><td>{{ org_details.validation_updated_at|default:"-" }}</td></tr>
+        <tr><th>Account ID</th><td>{{ org_details.account_id|default:"-" }}</td></tr>
+        <tr><th>Partition</th><td>{{ org_details.account_partition|default:"-" }}</td></tr>
+      </table>
+      {% if org_details.account_tags %}
+        <h3>Account tags</h3>
+        <table>
+          {% for key, value in org_details.account_tags.items %}
+            <tr><th>{{ key }}</th><td>{{ value }}</td></tr>
+          {% endfor %}
+        </table>
+      {% endif %}
+    {% endif %}
+
+    {% if integration_links %}
+      <h3>CloudFormation launch helpers</h3>
+      <p>
+        <a href="{{ integration_links.console_url }}" target="_blank" rel="noreferrer">Open CloudFormation console ({{ integration_links.region }})</a>
+      </p>
+      <p>Download template: <code>{{ integration_links.template_url }}</code></p>
+      <p>AWS CLI script:</p>
+      <pre>{{ integration_links.aws_cli_command }}</pre>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>4. Workload deployment</h2>
+    {% if not org_details %}
+      <p>Select an organisation above to deploy the workload stack.</p>
+    {% elif not org_details.validated %}
+      <p>The organisation has not validated its IAM role yet. Ask the customer to deploy the onboarding stack first.</p>
+    {% else %}
+      {% if deploy_form %}
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="deploy_workload">
+          {% for error in deploy_form.non_field_errors %}
+            <div class="alert error">{{ error }}</div>
+          {% endfor %}
+          {% for field in deploy_form %}
+            {% if field.is_hidden %}
+              {{ field }}
+            {% else %}
+              <div class="field">
+                {{ field.label_tag }}
+                {{ field }}
+                {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+                {% for error in field.errors %}
+                  <div class="alert error">{{ error }}</div>
+                {% endfor %}
+              </div>
+            {% endif %}
+          {% endfor %}
+          <button type="submit">Deploy / Update workload</button>
+        </form>
+      {% endif %}
+
+      {% if stack_status %}
+        <h3>Current stack status</h3>
+        <table>
+          <tr><th>Stack name</th><td>{{ stack_status.stack_name }}</td></tr>
+          <tr><th>Status</th><td>{{ stack_status.status|default:"NOT FOUND" }}</td></tr>
+          <tr><th>Last updated</th><td>{{ stack_status.last_updated|default:"-" }}</td></tr>
+        </table>
+        {% if stack_status.outputs %}
+          <h4>Outputs</h4>
+          <table>
+            {% for key, value in stack_status.outputs.items %}
+              <tr><th>{{ key }}</th><td>{{ value }}</td></tr>
+            {% endfor %}
+          </table>
+        {% endif %}
+      {% else %}
+        <p>No workload stack detected yet.</p>
+      {% endif %}
+
+      {% if delete_form %}
+        <form method="post" style="margin-top:1.5rem;">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="delete_workload">
+          {% for field in delete_form %}
+            {% if field.is_hidden %}
+              {{ field }}
+            {% else %}
+              <div class="field">
+                {{ field.label_tag }}
+                {{ field }}
+                {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+                {% for error in field.errors %}
+                  <div class="alert error">{{ error }}</div>
+                {% endfor %}
+              </div>
+            {% endif %}
+          {% endfor %}
+          <button type="submit" class="secondary">Delete workload resources</button>
+        </form>
+      {% endif %}
+    {% endif %}
+  </div>
+{% endblock %}
