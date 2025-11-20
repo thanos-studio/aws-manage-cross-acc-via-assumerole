@@ -27,7 +27,7 @@ class StackService:
             self._s3 = s3_client or boto3.client("s3", region_name=settings.aws_region)
 
     def generate_template_url(self, *, org_name: str, expires_in: int = 3600) -> StackTemplateInfo:
-        stack_name = f"Sigmoid-iam-{org_name}"
+        stack_name = f"Sunrin-iam-{org_name}"
         if settings.template_public_access:
             url = self._public_template_url(self._template_key)
         else:

@@ -44,7 +44,7 @@ class IntegrationService:
         parameters = {
             "OrganizationName": org_name,
             "ExternalId": external_id,
-            "SigmoidApiKey": api_key,
+            "SunrinApiKey": api_key,
         }
 
         console_url = self._stack_service.console_url(

@@ -1,9 +1,9 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "Sigmoid Managed IAM API",
+    "title": "Sunrin Managed IAM API",
     "version": "0.0.0-dev",
-    "description": "Programmatic interface for provisioning and validating Sigmoid managed IAM roles."
+    "description": "Programmatic interface for provisioning and validating Sunrin managed IAM roles."
   },
   "servers": [
     {
@@ -36,7 +36,7 @@
     "/api/users": {
       "post": {
         "operationId": "createUser",
-        "summary": "Issue a user identifier for Sigmoid operators.",
+        "summary": "Issue a user identifier for Sunrin operators.",
         "tags": [
           "Users"
         ],
@@ -46,6 +46,12 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/UserCreateRequest"
+              },
+              "example": {
+                "metadata": {
+                  "team": "sunrin-platform",
+                  "region": "us-east-1"
+                }
               }
             }
           }

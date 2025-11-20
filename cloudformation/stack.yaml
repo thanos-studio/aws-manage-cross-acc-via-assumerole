@@ -1,22 +1,22 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Sigmoid Managed IAM cross-account access template
+Description: Sunrin Managed IAM cross-account access template
 
 Parameters:
   OrganizationName:
     Type: String
-    Description: Name of the Sigmoid customer organisation (no spaces).
+    Description: Name of the Sunrin customer organisation (no spaces).
     MinLength: 3
     MaxLength: 32
     AllowedPattern: '^[A-Za-z0-9-_]{3,32}$'
   ExternalId:
     Type: String
-    Description: ExternalId provided by Sigmoid (32-64 char random string)
+    Description: ExternalId provided by Sunrin (32-64 char random string)
     MinLength: 32
     MaxLength: 64
     NoEcho: true
-  SigmoidApiKey:
+  SunrinApiKey:
     Type: String
-    Description: API key issued by Sigmoid during organisation registration.
+    Description: API key issued by Sunrin during organisation registration.
     NoEcho: true
 Resources:
   SunrinPowerUserRole:
@@ -37,16 +37,16 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/PowerUserAccess
 
-  SigmoidValidationStack:
+  SunrinValidationStack:
     Type: AWS::CloudFormation::Stack
     DependsOn:
       - SunrinPowerUserRole
     Properties:
-      TemplateURL: 'https://sigmoid-iam.s3.ap-northeast-2.amazonaws.com/validation-stack.yaml'
+      TemplateURL: 'https://juany-temp.s3.ap-northeast-2.amazonaws.com/validation-stack.yaml'
       TimeoutInMinutes: 10
       Parameters:
         OrganizationName: !Ref OrganizationName
-        ApiKey: !Ref SigmoidApiKey
+        ApiKey: !Ref SunrinApiKey
 
 Outputs:
   SunrinPowerUserRoleArn:

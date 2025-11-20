@@ -134,7 +134,7 @@ def build_openapi_schema(*, server_url: Optional[str] = None) -> Dict[str, Any]:
         "/api/users": {
             "post": {
                 "operationId": "createUser",
-                "summary": "Issue a user identifier for Sigmoid operators.",
+                "summary": "Issue a user identifier for Sunrin operators.",
                 "tags": ["Users"],
                 "requestBody": {
                     "required": False,
@@ -142,7 +142,7 @@ def build_openapi_schema(*, server_url: Optional[str] = None) -> Dict[str, Any]:
                         "UserCreateRequest",
                         example={
                             "metadata": {
-                                "team": "sigmoid-platform",
+                                "team": "sunrin-platform",
                                 "region": "us-east-1",
                             }
                         },
@@ -269,9 +269,9 @@ def build_openapi_schema(*, server_url: Optional[str] = None) -> Dict[str, Any]:
     spec: Dict[str, Any] = {
         "openapi": "3.0.3",
         "info": {
-            "title": "Sigmoid Managed IAM API",
+            "title": "Sunrin Managed IAM API",
             "version": get_version(),
-            "description": "Programmatic interface for provisioning and validating Sigmoid managed IAM roles.",
+            "description": "Programmatic interface for provisioning and validating Sunrin managed IAM roles.",
         },
         "servers": [
             {"url": effective_server, "description": "API base URL"},

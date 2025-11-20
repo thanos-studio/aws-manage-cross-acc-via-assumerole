@@ -37,7 +37,7 @@ SWAGGER_UI_TEMPLATE = """<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Sigmoid Managed IAM API Docs</title>
+    <title>Sunrin Managed IAM API Docs</title>
     <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
     <style>
       body {{ margin: 0; padding: 0; }}

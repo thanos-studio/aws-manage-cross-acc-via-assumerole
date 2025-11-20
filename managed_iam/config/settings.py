@@ -16,9 +16,9 @@ class CorsOrigins(RootModel[List[AnyHttpUrl]]):
 class Settings(BaseSettings):
     """Environment configuration for the Managed IAM prototype."""
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", env_prefix="SIGMOID_")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", env_prefix="SUNRIN_")
 
-    app_name: str = Field(default="sigmoid-managed-iam-prototype")
+    app_name: str = Field(default="sunrin-managed-iam-prototype")
     environment: str = Field(default="dev")
 
     redis_url: str = Field(default="redis://localhost:6379/0")
@@ -47,14 +47,14 @@ class Settings(BaseSettings):
         description="Set true when the template bucket/object is already public, so no presign is required.",
     )
 
-    validation_endpoint_base: AnyHttpUrl = Field(default="https://test.sigmoid.us")
+    validation_endpoint_base: AnyHttpUrl = Field(default="https://test.sunrin.us")
 
     cors_origins: Optional[CorsOrigins] = None
 
     log_bucket_tag_key: str = Field(default="Managed")
-    log_bucket_tag_value: str = Field(default="Sigmoid")
+    log_bucket_tag_value: str = Field(default="Sunrin")
 
-    session_name_format: str = Field(default="Sigmoid-{org_name}-{user_id}")
+    session_name_format: str = Field(default="Sunrin-{org_name}-{user_id}")
 
     rate_limit_window_seconds: int = Field(default=60)
     rate_limit_max_requests: int = Field(default=10)
@@ -78,10 +78,10 @@ class Settings(BaseSettings):
     def validate_crypto_material(self) -> "Settings":
         encryption_len = len(self.decode_encryption_key())
         if encryption_len not in {16, 24, 32}:
-            raise ValueError("SIGMOID_ENCRYPTION_KEY must decode to 16, 24, or 32 bytes (128/192/256-bit).")
+            raise ValueError("SUNRIN_ENCRYPTION_KEY must decode to 16, 24, or 32 bytes (128/192/256-bit).")
 
         if len(self.decode_hmac_key()) < 32:
-            raise ValueError("SIGMOID_HMAC_KEY must decode to at least 32 bytes.")
+            raise ValueError("SUNRIN_HMAC_KEY must decode to at least 32 bytes.")
 
         return self
 

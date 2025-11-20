@@ -1,10 +1,10 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Run a one-off validation Lambda that calls Sigmoid's validation endpoint.
+Description: Run a one-off validation Lambda that calls Sunrin's validation endpoint.
 
 Parameters:
   OrganizationName:
     Type: String
-    Description: Sigmoid organisation name (no spaces)
+    Description: Sunrin organisation name (no spaces)
     MinLength: 3
     MaxLength: 32
     AllowedPattern: '^[A-Za-z0-9-_]{3,32}$'
@@ -12,9 +12,9 @@ Parameters:
     Type: String
     Description: API key issued during organisation registration
     NoEcho: true
-  SigmoidNonce:
+  SunrinNonce:
     Type: String
-    Description: Unique nonce supplied by Sigmoid to prevent replay
+    Description: Unique nonce supplied by Sunrin to prevent replay
     Default: ""
 
 Resources:
@@ -31,7 +31,7 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Policies:
-        - PolicyName: SigmoidFetchAccountMetadata
+        - PolicyName: SunrinFetchAccountMetadata
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -50,9 +50,9 @@ Resources:
       Environment:
         Variables:
           ORGANIZATION_NAME: !Ref OrganizationName
-          API_ENDPOINT: 'http://test.sigmoid.us/integrations/validate'
+          API_ENDPOINT: 'http://test.chob.app/api/integrations/validate'
           API_KEY: !Ref ApiKey
-          SIGMOID_NONCE: !Ref SigmoidNonce
+          SUNRIN_NONCE: !Ref SunrinNonce
       Code:
         ZipFile: |
           import json
@@ -125,7 +125,7 @@ Resources:
                   endpoint = os.environ["API_ENDPOINT"]
                   api_key = os.environ["API_KEY"]
                   hmac_key = api_key.encode()
-                  nonce = os.environ.get("SIGMOID_NONCE") or uuid.uuid4().hex
+                  nonce = os.environ.get("SUNRIN_NONCE") or uuid.uuid4().hex
 
                   account_id, partition, tags = _fetch_account_metadata()
 
