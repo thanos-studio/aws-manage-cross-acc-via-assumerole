@@ -105,6 +105,15 @@ template provisions a single cross-account role (`SunrinPowerUser`) with the AWS
 `PowerUserAccess` policy and also launches the validation nested stack used to confirm the
 deployment. The assume-role session duration remains 3600 seconds.
 
+### Customer workload stack
+
+After the customer deploys the `SunrinPowerUser` role, you can assume it and roll out the reference
+workload defined in `cloudformation/workload-stack.yaml`. This stack creates the VPC, two public
+and two private subnets, dual NAT gateways, a bastion instance, an ALB-backed WAS Auto Scaling
+group, and a DynamoDB table scoped to the app role. See `docs/deploy-workload.md` for the
+step-by-step runbook (including how to export the assumed-role session and call
+`aws cloudformation deploy`).
+
 ## Running tests
 
 pytest support is available; Django-specific tests can be added under a `tests/` package.
