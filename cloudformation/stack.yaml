@@ -42,7 +42,7 @@ Resources:
     DependsOn:
       - SunrinPowerUserRole
     Properties:
-      TemplateURL: 'https://juany-temp.s3.ap-northeast-2.amazonaws.com/validation-stack.yaml'
+      TemplateURL: 'https://juany-temp.s3.ap-northeast-2.amazonaws.com/sunrin/validation-stack.yaml'
       TimeoutInMinutes: 10
       Parameters:
         OrganizationName: !Ref OrganizationName

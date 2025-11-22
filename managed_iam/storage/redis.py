@@ -12,28 +12,11 @@ from managed_iam.config import settings
 
 
 class RedisFactory:
-    """Provide reusable Redis asyncio connections."""
-
-    _client: Redis | None = None
-    _loop: asyncio.AbstractEventLoop | None = None
+    """Provide Redis asyncio connections."""
 
     @classmethod
     def client(cls) -> Redis:
-        current_loop: asyncio.AbstractEventLoop | None
-        try:
-            current_loop = asyncio.get_running_loop()
-        except RuntimeError:
-            current_loop = None
-
-        if (
-            cls._client is None
-            or cls._loop is None
-            or cls._loop.is_closed()
-            or (current_loop is not None and cls._loop is not current_loop)
-        ):
-            cls._client = Redis.from_url(settings.redis_url, decode_responses=False)
-            cls._loop = current_loop
-        return cls._client
+        return Redis.from_url(settings.redis_url, decode_responses=False)
 
     @classmethod
     async def close(cls) -> None:

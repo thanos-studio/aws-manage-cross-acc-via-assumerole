@@ -8,7 +8,7 @@ from typing import Any
 
 import boto3
 from botocore.exceptions import ClientError
-from asgiref.sync import async_to_sync
+from asgiref.sync import sync_to_async
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.http import HttpRequest, JsonResponse, HttpResponseNotAllowed, HttpResponse
 from django.shortcuts import render
@@ -134,7 +134,7 @@ async def swagger_ui(request: HttpRequest) -> HttpResponse:
     return HttpResponse(html, content_type="text/html")
 
 
-def portal(request: HttpRequest) -> HttpResponse:
+async def portal(request: HttpRequest) -> HttpResponse:
     """HTML operator console for onboarding and workload deployment."""
 
     user_service = UserService()
@@ -170,7 +170,7 @@ def portal(request: HttpRequest) -> HttpResponse:
                 except DjangoValidationError as exc:
                     user_form.add_error("metadata", exc)
                 else:
-                    record = async_to_sync(user_service.create_user)(metadata=metadata)
+                    record = await user_service.create_user(metadata=metadata)
                     created_user_id = record.user_id
                     alerts.append({"level": "success", "message": f"Created user_id {record.user_id}."})
         elif action == "register_org":
@@ -178,12 +178,12 @@ def portal(request: HttpRequest) -> HttpResponse:
             if register_form.is_valid():
                 user_id = register_form.cleaned_data["user_id"]
                 org_name = register_form.cleaned_data["org_name"]
-                exists = async_to_sync(user_service.ensure_user)(user_id)
+                exists = await user_service.ensure_user(user_id)
                 if not exists:
                     register_form.add_error("user_id", "User not found. Create it first.")
                 else:
                     try:
-                        result = async_to_sync(org_service.register_org)(org_name=org_name, owner_user_id=user_id)
+                        result = await org_service.register_org(org_name=org_name, owner_user_id=user_id)
                     except ValueError as exc:
                         register_form.add_error("org_name", str(exc))
                     else:
@@ -208,7 +208,7 @@ def portal(request: HttpRequest) -> HttpResponse:
                 if desired:
                     parameters["AsgDesiredCapacity"] = desired
                 try:
-                    workload_result = async_to_sync(workload_service.deploy_stack)(
+                    workload_result = await workload_service.deploy_stack(
                         org_name=selected_org,
                         parameters=parameters,
                     )
@@ -220,7 +220,7 @@ def portal(request: HttpRequest) -> HttpResponse:
             if delete_form.is_valid():
                 selected_org = delete_form.cleaned_data["org_name"]
                 try:
-                    workload_result = async_to_sync(workload_service.delete_stack)(org_name=selected_org)
+                    workload_result = await workload_service.delete_stack(org_name=selected_org)
                     alerts.append({"level": "info", "message": workload_result.message})
                 except (ValueError, PermissionError, ClientError) as exc:
                     delete_form.add_error(None, str(exc))
@@ -229,7 +229,7 @@ def portal(request: HttpRequest) -> HttpResponse:
         lookup_form = OrgLookupForm(initial={"org_name": selected_org} if selected_org else None)
 
     if selected_org:
-        record = async_to_sync(org_service.get_org)(selected_org)
+        record = await org_service.get_org(selected_org)
         if record:
             org_details = {
                 "org_name": record.org_name,
@@ -241,7 +241,7 @@ def portal(request: HttpRequest) -> HttpResponse:
                 "account_tags": record.account_tags or {},
             }
             try:
-                integration_links = async_to_sync(integration_service.build_links)(org_name=record.org_name)
+                integration_links = await integration_service.build_links(org_name=record.org_name)
             except ValueError as exc:
                 alerts.append({"level": "error", "message": str(exc)})
 
@@ -260,7 +260,7 @@ def portal(request: HttpRequest) -> HttpResponse:
 
             if record.validation_status and record.account_id:
                 try:
-                    stack_status = async_to_sync(workload_service.describe_stack)(record.org_name)
+                    stack_status = await workload_service.describe_stack(record.org_name)
                 except (ValueError, PermissionError, ClientError) as exc:
                     alerts.append({"level": "error", "message": str(exc)})
         else:
@@ -281,7 +281,7 @@ def portal(request: HttpRequest) -> HttpResponse:
         "stack_status": stack_status,
         "workload_result": workload_result,
     }
-    return render(request, "portal.html", context)
+    return await sync_to_async(render)(request, "portal.html", context)
 
 
 @csrf_exempt
