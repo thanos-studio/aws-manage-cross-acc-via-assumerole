@@ -18,7 +18,6 @@ from django.views.decorators.csrf import csrf_exempt
 from pydantic import ValidationError
 
 from managed_iam_app.forms import (
-    AwsProfileForm,
     KeyPairForm,
     OrgLookupForm,
     OrgRegisterForm,
@@ -155,20 +154,9 @@ async def portal(request: HttpRequest) -> HttpResponse:
     stack_status: WorkloadStatus | None = None
     workload_result: WorkloadActionResult | None = None
 
-    profile_form = AwsProfileForm(request.GET or None)
     lookup_form = OrgLookupForm(request.GET or None)
     if lookup_form.is_bound and lookup_form.is_valid():
         selected_org = lookup_form.cleaned_data["org_name"]
-
-    selected_profile: str | None = request.POST.get("aws_profile")
-    if selected_profile is None:
-        if profile_form.is_bound:
-            if profile_form.is_valid():
-                selected_profile = profile_form.cleaned_data["aws_profile"]
-            else:
-                selected_profile = request.GET.get("aws_profile")
-        else:
-            selected_profile = request.GET.get("aws_profile")
 
     user_form = UserCreateForm()
     register_form = OrgRegisterForm()
@@ -238,7 +226,6 @@ async def portal(request: HttpRequest) -> HttpResponse:
                             workload_result = await workload_service.deploy_stack(
                                 org_name=selected_org,
                                 parameters=parameters,
-                                aws_profile=selected_profile,
                             )
                             alerts.append({"level": "success", "message": workload_result.message})
                         except (ValueError, PermissionError, ClientError) as exc:
@@ -250,7 +237,6 @@ async def portal(request: HttpRequest) -> HttpResponse:
                     try:
                         workload_result = await workload_service.delete_stack(
                             org_name=selected_org,
-                            aws_profile=selected_profile,
                         )
                         alerts.append({"level": "info", "message": workload_result.message})
                     except (ValueError, PermissionError, ClientError) as exc:
@@ -318,10 +304,7 @@ async def portal(request: HttpRequest) -> HttpResponse:
                 "account_tags": record.account_tags or {},
             }
             try:
-                integration_links = await integration_service.build_links(
-                    org_name=record.org_name,
-                    aws_profile=selected_profile,
-                )
+                integration_links = await integration_service.build_links(org_name=record.org_name)
             except ValueError as exc:
                 alerts.append({"level": "error", "message": str(exc)})
 
@@ -335,11 +318,10 @@ async def portal(request: HttpRequest) -> HttpResponse:
                         "environment_name": default_env,
                         "bastion_allowed_cidr": "0.0.0.0/0",
                         "dynamo_table_name": f"{record.org_name}AppTable",
-                        "aws_profile": selected_profile,
                     }
                 )
             if not delete_form:
-                delete_form = WorkloadDeleteForm(initial={"org_name": record.org_name, "aws_profile": selected_profile})
+                delete_form = WorkloadDeleteForm(initial={"org_name": record.org_name})
             keypair_initial = {
                 "org_name": record.org_name,
                 "user_id": record.owner_user_id,
@@ -350,9 +332,7 @@ async def portal(request: HttpRequest) -> HttpResponse:
 
             if record.validation_status and record.account_id:
                 try:
-                    stack_status = await workload_service.describe_stack(
-                        record.org_name, aws_profile=selected_profile
-                    )
+                    stack_status = await workload_service.describe_stack(record.org_name)
                 except (ValueError, PermissionError, ClientError) as exc:
                     alerts.append({"level": "error", "message": str(exc)})
         else:
@@ -367,8 +347,6 @@ async def portal(request: HttpRequest) -> HttpResponse:
         "keypair_form": keypair_form,
         "created_keypair_name": created_keypair_name,
         "created_keypair_download": created_keypair_download,
-        "profile_form": profile_form,
-        "aws_profile": selected_profile,
         "alerts": alerts,
         "created_user_id": created_user_id,
         "registration_result": registration_result,

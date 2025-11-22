@@ -31,11 +31,12 @@ class STSService:
         self._org_service = org_service or OrganisationService()
 
     def _build_client(self, aws_profile: str | None = None):
-        if aws_profile:
+        profile = aws_profile or settings.default_assume_profile
+        if profile:
             try:
-                session = boto3.session.Session(profile_name=aws_profile)
+                session = boto3.session.Session(profile_name=profile)
             except ProfileNotFound as exc:
-                raise ValueError(f"aws profile '{aws_profile}' not found") from exc
+                raise ValueError(f"aws profile '{profile}' not found") from exc
             return session.client("sts", region_name=settings.aws_region)
         return boto3.client("sts", region_name=settings.aws_region)
 

@@ -74,7 +74,6 @@ class WorkloadDeployForm(forms.Form):
         help_text="Overrides the Auto Scaling desired capacity (default 2).",
         required=False,
     )
-    aws_profile = forms.CharField(widget=forms.HiddenInput(), required=False, max_length=64)
 
 
 class WorkloadDeleteForm(forms.Form):
@@ -84,22 +83,12 @@ class WorkloadDeleteForm(forms.Form):
         max_length=6,
         help_text="Enter DELETE (in caps) to remove the workload stack.",
     )
-    aws_profile = forms.CharField(widget=forms.HiddenInput(), required=False, max_length=64)
 
     def clean_confirm_text(self) -> str:
         value = self.cleaned_data["confirm_text"].strip().upper()
         if value != "DELETE":
             raise forms.ValidationError("Type DELETE in uppercase to confirm removal.")
         return value
-
-
-class AwsProfileForm(forms.Form):
-    aws_profile = forms.CharField(
-        label="AWS CLI profile for assume-role calls",
-        required=False,
-        max_length=64,
-        help_text="Leave empty to use default credentials.",
-    )
 
 
 class KeyPairForm(forms.Form):

@@ -81,8 +81,9 @@ class WorkloadStackService:
         return await asyncio.to_thread(func, *args, **kwargs)
 
     def _session(self, aws_profile: str | None = None) -> boto3.session.Session:
-        if aws_profile:
-            return boto3.session.Session(profile_name=aws_profile)
+        profile = aws_profile or settings.default_assume_profile
+        if profile:
+            return boto3.session.Session(profile_name=profile)
         return boto3.session.Session()
 
     def _assume_role(self, record: OrgRecord, aws_profile: str | None) -> dict[str, Any]:

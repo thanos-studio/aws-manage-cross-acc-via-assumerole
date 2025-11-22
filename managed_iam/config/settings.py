@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     provider_account_id: str = Field(default="628897991799")
     provider_readonly_role: str = Field(default="SunrinPowerUser")
     aws_region: str = Field(default="us-east-1")
+    default_assume_profile: str | None = Field(
+        default=None,
+        description="Optional AWS profile used to assume the Sunrin role (overridden by request-level selections).",
+    )
     template_bucket: str = Field(
         ..., description="S3 bucket where CloudFormation templates are stored via public pre-signed URLs."
     )

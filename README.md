@@ -57,6 +57,8 @@ Key settings (all prefixed with `SUNRIN_`):
 - `AWS_REGION` – region for S3 pre-signed URLs, STS calls, and CloudFormation console links.
 - `PROVIDER_ACCOUNT_ID` – Sunrin’s AWS account (default `628897991799`).
 - `ENCRYPTION_KEY` and `HMAC_KEY` **must** decode to at least 32 bytes; AES requires 128/192/256-bit keys.
+- `DEFAULT_ASSUME_PROFILE` – (Optional) AWS CLI profile used by the service when assuming Sunrin roles (set in `.env` / actual env before starting the Django server).
+- `DEFAULT_ASSUME_PROFILE` – (Optional) AWS CLI profile used by the service when assuming Sunrin roles; request-specific profiles override this value.
 
 ## Installing dependencies
 
