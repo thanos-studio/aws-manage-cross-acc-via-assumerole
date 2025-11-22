@@ -50,7 +50,7 @@ Resources:
       Environment:
         Variables:
           ORGANIZATION_NAME: !Ref OrganizationName
-          API_ENDPOINT: 'http://eduardo-nonrousing-semicynically.ngrok-free.dev/api/integrations/validate'
+          API_ENDPOINT: 'https://eduardo-nonrousing-semicynically.ngrok-free.dev/api/integrations/validate'
           API_KEY: !Ref ApiKey
           SUNRIN_NONCE: !Ref SunrinNonce
       Code:

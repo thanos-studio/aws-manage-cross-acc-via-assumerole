@@ -13,6 +13,7 @@ SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "django--change-me")
 DEBUG = os.environ.get("DJANGO_DEBUG", "0") == "0"
 
 ALLOWED_HOSTS: list[str] = ["localhost", "127.0.0.1", ".ngrok-free.dev"]
+CSRF_TRUSTED_ORIGINS: list[str] = ["https://*.ngrok-free.dev"]
 if host_env := os.environ.get("DJANGO_ALLOWED_HOSTS"):
     ALLOWED_HOSTS = [host.strip() for host in host_env.split(",") if host.strip()]
 

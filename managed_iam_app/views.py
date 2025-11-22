@@ -5,6 +5,7 @@ import logging
 from json import JSONDecodeError
 import inspect
 from typing import Any
+from urllib.parse import quote
 
 import boto3
 from botocore.exceptions import ClientError
@@ -17,6 +18,8 @@ from django.views.decorators.csrf import csrf_exempt
 from pydantic import ValidationError
 
 from managed_iam_app.forms import (
+    AwsProfileForm,
+    KeyPairForm,
     OrgLookupForm,
     OrgRegisterForm,
     UserCreateForm,
@@ -35,6 +38,7 @@ from managed_iam.services import (
     RateLimitExceeded,
     RateLimiter,
 )
+from managed_iam.config import settings
 from managed_iam.services.integration import IntegrationService
 from managed_iam.services.orgs import OrganisationService
 from managed_iam.services.sts import STSService
@@ -151,79 +155,152 @@ async def portal(request: HttpRequest) -> HttpResponse:
     stack_status: WorkloadStatus | None = None
     workload_result: WorkloadActionResult | None = None
 
+    profile_form = AwsProfileForm(request.GET or None)
     lookup_form = OrgLookupForm(request.GET or None)
     if lookup_form.is_bound and lookup_form.is_valid():
         selected_org = lookup_form.cleaned_data["org_name"]
+
+    selected_profile: str | None = request.POST.get("aws_profile")
+    if selected_profile is None:
+        if profile_form.is_bound:
+            if profile_form.is_valid():
+                selected_profile = profile_form.cleaned_data["aws_profile"]
+            else:
+                selected_profile = request.GET.get("aws_profile")
+        else:
+            selected_profile = request.GET.get("aws_profile")
 
     user_form = UserCreateForm()
     register_form = OrgRegisterForm()
     deploy_form: WorkloadDeployForm | None = None
     delete_form: WorkloadDeleteForm | None = None
+    keypair_form = KeyPairForm()
+    created_keypair_name: str | None = None
+    created_keypair_download: str | None = None
 
     if request.method == "POST":
         action = request.POST.get("action")
-        if action == "create_user":
-            user_form = UserCreateForm(request.POST)
-            if user_form.is_valid():
-                try:
-                    metadata = user_form.metadata_dict()
-                except DjangoValidationError as exc:
-                    user_form.add_error("metadata", exc)
-                else:
-                    record = await user_service.create_user(metadata=metadata)
-                    created_user_id = record.user_id
-                    alerts.append({"level": "success", "message": f"Created user_id {record.user_id}."})
-        elif action == "register_org":
-            register_form = OrgRegisterForm(request.POST)
-            if register_form.is_valid():
-                user_id = register_form.cleaned_data["user_id"]
-                org_name = register_form.cleaned_data["org_name"]
-                exists = await user_service.ensure_user(user_id)
-                if not exists:
-                    register_form.add_error("user_id", "User not found. Create it first.")
-                else:
+        match action:
+            case "create_user":
+                user_form = UserCreateForm(request.POST)
+                if user_form.is_valid():
                     try:
-                        result = await org_service.register_org(org_name=org_name, owner_user_id=user_id)
-                    except ValueError as exc:
-                        register_form.add_error("org_name", str(exc))
+                        metadata = user_form.metadata_dict()
+                    except DjangoValidationError as exc:
+                        user_form.add_error("metadata", exc)
                     else:
-                        registration_result = OrgRegisterResponse(
-                            org_name=result.org_name,
-                            api_key=result.api_key,
-                            external_id=result.external_id,
+                        record = await user_service.create_user(metadata=metadata)
+                        created_user_id = record.user_id
+                        alerts.append({"level": "success", "message": f"Created user_id {record.user_id}."})
+            case "register_org":
+                register_form = OrgRegisterForm(request.POST)
+                if register_form.is_valid():
+                    user_id = register_form.cleaned_data["user_id"]
+                    org_name = register_form.cleaned_data["org_name"]
+                    exists = await user_service.ensure_user(user_id)
+                    if not exists:
+                        register_form.add_error("user_id", "User not found. Create it first.")
+                    else:
+                        try:
+                            result = await org_service.register_org(org_name=org_name, owner_user_id=user_id)
+                        except ValueError as exc:
+                            register_form.add_error("org_name", str(exc))
+                        else:
+                            registration_result = OrgRegisterResponse(
+                                org_name=result.org_name,
+                                api_key=result.api_key,
+                                external_id=result.external_id,
+                            )
+                            alerts.append(
+                                {"level": "success", "message": f"Organisation {result.org_name} registered."}
+                            )
+                            selected_org = result.org_name
+            case "deploy_workload":
+                deploy_form = WorkloadDeployForm(request.POST)
+                if deploy_form.is_valid():
+                    selected_org = deploy_form.cleaned_data["org_name"]
+                    user_id = deploy_form.cleaned_data["user_id"]
+                    api_key = deploy_form.cleaned_data["api_key"]
+                    parameters = {
+                        "EnvironmentName": deploy_form.cleaned_data["environment_name"],
+                        "BastionKeyPairName": deploy_form.cleaned_data["bastion_key_pair"],
+                        "BastionAllowedCidr": deploy_form.cleaned_data["bastion_allowed_cidr"],
+                        "DynamoTableName": deploy_form.cleaned_data["dynamo_table_name"],
+                    }
+                    desired = deploy_form.cleaned_data.get("asg_desired_capacity")
+                    if desired:
+                        parameters["AsgDesiredCapacity"] = desired
+                    record = await org_service.verify_api_key(org_name=selected_org, api_key=api_key)
+                    if not record or record.owner_user_id != user_id:
+                        deploy_form.add_error(None, "invalid organisation credentials")
+                    else:
+                        try:
+                            workload_result = await workload_service.deploy_stack(
+                                org_name=selected_org,
+                                parameters=parameters,
+                                aws_profile=selected_profile,
+                            )
+                            alerts.append({"level": "success", "message": workload_result.message})
+                        except (ValueError, PermissionError, ClientError) as exc:
+                            deploy_form.add_error(None, str(exc))
+            case "delete_workload":
+                delete_form = WorkloadDeleteForm(request.POST)
+                if delete_form.is_valid():
+                    selected_org = delete_form.cleaned_data["org_name"]
+                    try:
+                        workload_result = await workload_service.delete_stack(
+                            org_name=selected_org,
+                            aws_profile=selected_profile,
                         )
-                        alerts.append({"level": "success", "message": f"Organisation {result.org_name} registered."})
-                        selected_org = result.org_name
-        elif action == "deploy_workload":
-            deploy_form = WorkloadDeployForm(request.POST)
-            if deploy_form.is_valid():
-                selected_org = deploy_form.cleaned_data["org_name"]
-                parameters = {
-                    "EnvironmentName": deploy_form.cleaned_data["environment_name"],
-                    "BastionKeyPairName": deploy_form.cleaned_data["bastion_key_pair"],
-                    "BastionAllowedCidr": deploy_form.cleaned_data["bastion_allowed_cidr"],
-                    "DynamoTableName": deploy_form.cleaned_data["dynamo_table_name"],
-                }
-                desired = deploy_form.cleaned_data.get("asg_desired_capacity")
-                if desired:
-                    parameters["AsgDesiredCapacity"] = desired
-                try:
-                    workload_result = await workload_service.deploy_stack(
-                        org_name=selected_org,
-                        parameters=parameters,
-                    )
-                    alerts.append({"level": "success", "message": workload_result.message})
-                except (ValueError, PermissionError, ClientError) as exc:
-                    deploy_form.add_error(None, str(exc))
-        elif action == "delete_workload":
-            delete_form = WorkloadDeleteForm(request.POST)
-            if delete_form.is_valid():
-                selected_org = delete_form.cleaned_data["org_name"]
-                try:
-                    workload_result = await workload_service.delete_stack(org_name=selected_org)
-                    alerts.append({"level": "info", "message": workload_result.message})
-                except (ValueError, PermissionError, ClientError) as exc:
-                    delete_form.add_error(None, str(exc))
+                        alerts.append({"level": "info", "message": workload_result.message})
+                    except (ValueError, PermissionError, ClientError) as exc:
+                        delete_form.add_error(None, str(exc))
+            case "create_keypair":
+                keypair_form = KeyPairForm(request.POST)
+                if keypair_form.is_valid():
+                    user_id = keypair_form.cleaned_data["user_id"]
+                    org_name = keypair_form.cleaned_data["org_name"]
+                    api_key = keypair_form.cleaned_data["api_key"]
+                    key_name = keypair_form.cleaned_data["name"]
+                    record = await org_service.verify_api_key(org_name=org_name, api_key=api_key)
+                    if not record or record.owner_user_id != user_id:
+                        keypair_form.add_error(None, "invalid organisation credentials")
+                    elif not record.validation_status or not record.account_id:
+                        keypair_form.add_error(None, "organisation must be validated before creating resources")
+                    else:
+                        sts_service = STSService(org_service)
+                        try:
+                            creds = await sts_service.issue_credentials(
+                                org_name=org_name,
+                                user_id=user_id,
+                                role_type="readonly",
+                                target_account_id=record.account_id,
+                                api_key=api_key,
+                            )
+                        except (ValueError, PermissionError, RuntimeError) as exc:
+                            keypair_form.add_error(None, str(exc))
+                        else:
+                            session = boto3.Session(
+                                aws_access_key_id=creds.access_key_id,
+                                aws_secret_access_key=creds.secret_access_key,
+                                aws_session_token=creds.session_token,
+                                region_name=settings.aws_region,
+                            )
+                            ec2 = session.client("ec2")
+                            try:
+                                response = ec2.create_key_pair(KeyName=key_name)
+                            except ClientError as exc:
+                                keypair_form.add_error(None, str(exc))
+                            else:
+                                key_material = response["KeyMaterial"]
+                                created_keypair_name = response["KeyName"]
+                                created_keypair_download = f"data:text/plain;charset=utf-8,{quote(key_material)}"
+                                alerts.append(
+                                    {
+                                        "level": "success",
+                                        "message": f"Created key pair {key_name}. Download before navigating away.",
+                                    }
+                                )
 
     if request.method != "GET" or not lookup_form.is_bound or not lookup_form.is_valid():
         lookup_form = OrgLookupForm(initial={"org_name": selected_org} if selected_org else None)
@@ -241,7 +318,10 @@ async def portal(request: HttpRequest) -> HttpResponse:
                 "account_tags": record.account_tags or {},
             }
             try:
-                integration_links = await integration_service.build_links(org_name=record.org_name)
+                integration_links = await integration_service.build_links(
+                    org_name=record.org_name,
+                    aws_profile=selected_profile,
+                )
             except ValueError as exc:
                 alerts.append({"level": "error", "message": str(exc)})
 
@@ -250,17 +330,29 @@ async def portal(request: HttpRequest) -> HttpResponse:
                 deploy_form = WorkloadDeployForm(
                     initial={
                         "org_name": record.org_name,
+                        "user_id": record.owner_user_id,
+                        "api_key": registration_result.api_key if registration_result else "",
                         "environment_name": default_env,
                         "bastion_allowed_cidr": "0.0.0.0/0",
                         "dynamo_table_name": f"{record.org_name}AppTable",
+                        "aws_profile": selected_profile,
                     }
                 )
             if not delete_form:
-                delete_form = WorkloadDeleteForm(initial={"org_name": record.org_name})
+                delete_form = WorkloadDeleteForm(initial={"org_name": record.org_name, "aws_profile": selected_profile})
+            keypair_initial = {
+                "org_name": record.org_name,
+                "user_id": record.owner_user_id,
+                "api_key": registration_result.api_key if registration_result else "",
+            }
+            if not keypair_form.is_bound:
+                keypair_form = KeyPairForm(initial=keypair_initial)
 
             if record.validation_status and record.account_id:
                 try:
-                    stack_status = await workload_service.describe_stack(record.org_name)
+                    stack_status = await workload_service.describe_stack(
+                        record.org_name, aws_profile=selected_profile
+                    )
                 except (ValueError, PermissionError, ClientError) as exc:
                     alerts.append({"level": "error", "message": str(exc)})
         else:
@@ -272,6 +364,11 @@ async def portal(request: HttpRequest) -> HttpResponse:
         "lookup_form": lookup_form,
         "deploy_form": deploy_form,
         "delete_form": delete_form,
+        "keypair_form": keypair_form,
+        "created_keypair_name": created_keypair_name,
+        "created_keypair_download": created_keypair_download,
+        "profile_form": profile_form,
+        "aws_profile": selected_profile,
         "alerts": alerts,
         "created_user_id": created_user_id,
         "registration_result": registration_result,

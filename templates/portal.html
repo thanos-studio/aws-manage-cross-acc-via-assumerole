@@ -12,6 +12,7 @@
     <form method="post">
       {% csrf_token %}
       <input type="hidden" name="action" value="create_user">
+      <input type="hidden" name="aws_profile" value="{{ aws_profile|default:'' }}">
       {% for error in user_form.non_field_errors %}
         <div class="alert error">{{ error }}</div>
       {% endfor %}
@@ -42,6 +43,7 @@
     <form method="post">
       {% csrf_token %}
       <input type="hidden" name="action" value="register_org">
+      <input type="hidden" name="aws_profile" value="{{ aws_profile|default:'' }}">
       {% for error in register_form.non_field_errors %}
         <div class="alert error">{{ error }}</div>
       {% endfor %}
@@ -66,7 +68,6 @@
       </div>
     {% endif %}
   </div>
-
   <div class="card">
     <h2>3. Connected account overview</h2>
     <form method="get" style="margin-bottom:1rem;">
@@ -79,6 +80,23 @@
           {% endfor %}
         </div>
       {% endfor %}
+      <div class="field">
+        <label for="aws-profile-input">AWS CLI profile</label>
+        <input
+          aria-describedby="aws-profile-help"
+          id="aws-profile-input"
+          name="aws_profile"
+          type="text"
+          value="{{ aws_profile|default:'' }}"
+          placeholder="sunrin-platform"
+        >
+        <small id="aws-profile-help">Used when assuming the customer role (leave empty for default credentials).</small>
+        {% if profile_form.aws_profile.errors %}
+          {% for error in profile_form.aws_profile.errors %}
+            <div class="alert error">{{ error }}</div>
+          {% endfor %}
+        {% endif %}
+      </div>
       <button type="submit" class="secondary">Load organisation</button>
     </form>
     {% if selected_org and not org_details %}
@@ -104,19 +122,57 @@
       {% endif %}
     {% endif %}
 
-    {% if integration_links %}
-      <h3>CloudFormation launch helpers</h3>
-      <p>
-        <a href="{{ integration_links.console_url }}" target="_blank" rel="noreferrer">Open CloudFormation console ({{ integration_links.region }})</a>
-      </p>
-      <p>Download template: <code>{{ integration_links.template_url }}</code></p>
-      <p>AWS CLI script:</p>
+      {% if integration_links %}
+        <h3>CloudFormation launch helpers</h3>
+        <p>
+          <a href="{{ integration_links.console_url }}" target="_blank" rel="noreferrer">Open CloudFormation console ({{ integration_links.region }})</a>
+        </p>
+        <p>Download template: <code>{{ integration_links.template_url }}</code></p>
+        <p>AWS CLI script:</p>
       <pre>{{ integration_links.aws_cli_command }}</pre>
     {% endif %}
   </div>
 
   <div class="card">
-    <h2>4. Workload deployment</h2>
+    <h2>4. Create key pair</h2>
+    <p>Use the validated organisation credentials to assume the Sunrin role and upload a key pair.</p>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="create_keypair">
+      <input type="hidden" name="aws_profile" value="{{ aws_profile|default:'' }}">
+      {% for error in keypair_form.non_field_errors %}
+        <div class="alert error">{{ error }}</div>
+      {% endfor %}
+      {% for field in keypair_form %}
+        {% if field.is_hidden %}
+          {{ field }}
+        {% else %}
+          <div class="field">
+            {{ field.label_tag }}
+            {{ field }}
+            {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+            {% for error in field.errors %}
+              <div class="alert error">{{ error }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endfor %}
+      <button type="submit">Create and download key pair</button>
+    </form>
+    {% if created_keypair_name %}
+      <p>
+        Key pair <strong>{{ created_keypair_name }}</strong> created.
+        <a href="{{ created_keypair_download }}" download="{{ created_keypair_name }}.pem">Download private key</a>
+      </p>
+      <p class="alert info">Store the `.pem` file securely—this is the only copy.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>5. Workload deployment</h2>
+    {% if aws_profile %}
+      <p>Assuming customer role via AWS profile: <code>{{ aws_profile }}</code></p>
+    {% endif %}
     {% if not org_details %}
       <p>Select an organisation above to deploy the workload stack.</p>
     {% elif not org_details.validated %}
@@ -126,6 +182,7 @@
         <form method="post">
           {% csrf_token %}
           <input type="hidden" name="action" value="deploy_workload">
+          <input type="hidden" name="aws_profile" value="{{ aws_profile|default:'' }}">
           {% for error in deploy_form.non_field_errors %}
             <div class="alert error">{{ error }}</div>
           {% endfor %}
@@ -170,6 +227,7 @@
         <form method="post" style="margin-top:1.5rem;">
           {% csrf_token %}
           <input type="hidden" name="action" value="delete_workload">
+          <input type="hidden" name="aws_profile" value="{{ aws_profile|default:'' }}">
           {% for field in delete_form %}
             {% if field.is_hidden %}
               {{ field }}

@@ -88,6 +88,8 @@ The root path (`/`) exposes a lightweight HTML console where operators can:
 - Inspect validation status, connected account metadata, and workload deployment state for a selected organisation.
 - Deploy, update, or delete the reference workload stack defined in `cloudformation/workload-stack.yaml`
   directly from the UI (the app assumes the customer's `SunrinPowerUser` role to call CloudFormation).
+- Create key pairs inside the validated customer account by supplying the `user_id`, `org_name`, and `api_key` you just generated, then download the `.pem` material straight from the portal before proceeding to workload deployment.
+- Create EC2 key pairs in the configured region and download the private `.pem` file immediately from the portal so it can be used for the bastion host.
 
 See `docs/deploy-workload.md` if you prefer running the workload deployment via CLI.
 

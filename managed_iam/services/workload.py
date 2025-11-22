@@ -58,24 +58,34 @@ class WorkloadStackService:
             raise PermissionError("organisation is not validated yet")
         return record
 
-    async def describe_stack(self, org_name: str) -> WorkloadStatus | None:
+    async def describe_stack(self, org_name: str, aws_profile: str | None = None) -> WorkloadStatus | None:
         record = await self._require_validated_org(org_name)
-        return await self._run_in_thread(self._describe_stack_sync, record)
+        return await self._run_in_thread(self._describe_stack_sync, record, aws_profile)
 
-    async def deploy_stack(self, org_name: str, parameters: dict[str, Any]) -> WorkloadActionResult:
+    async def deploy_stack(
+        self,
+        org_name: str,
+        parameters: dict[str, Any],
+        aws_profile: str | None = None,
+    ) -> WorkloadActionResult:
         record = await self._require_validated_org(org_name)
-        return await self._run_in_thread(self._deploy_stack_sync, record, parameters)
+        return await self._run_in_thread(self._deploy_stack_sync, record, parameters, aws_profile)
 
-    async def delete_stack(self, org_name: str) -> WorkloadActionResult:
+    async def delete_stack(self, org_name: str, aws_profile: str | None = None) -> WorkloadActionResult:
         record = await self._require_validated_org(org_name)
-        return await self._run_in_thread(self._delete_stack_sync, record)
+        return await self._run_in_thread(self._delete_stack_sync, record, aws_profile)
 
     async def _run_in_thread(self, func, *args, **kwargs):
         import asyncio
 
         return await asyncio.to_thread(func, *args, **kwargs)
 
-    def _assume_role(self, record: OrgRecord) -> dict[str, Any]:
+    def _session(self, aws_profile: str | None = None) -> boto3.session.Session:
+        if aws_profile:
+            return boto3.session.Session(profile_name=aws_profile)
+        return boto3.session.Session()
+
+    def _assume_role(self, record: OrgRecord, aws_profile: str | None) -> dict[str, Any]:
         external_id = self._org_service.decrypt_external_id(record)
         session_base = settings.session_name_format.format(org_name=record.org_name, user_id=record.owner_user_id)
         timestamp_suffix = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -84,7 +94,8 @@ class WorkloadStackService:
             available = 1
         session_name = f"{session_base[:available]}-{timestamp_suffix}"
         role_arn = f"arn:aws:iam::{record.account_id}:role/{settings.provider_readonly_role}"
-        sts_client = boto3.client("sts", region_name=settings.aws_region)
+        session = self._session(aws_profile)
+        sts_client = session.client("sts", region_name=settings.aws_region)
         response = sts_client.assume_role(
             RoleArn=role_arn,
             RoleSessionName=session_name,
@@ -102,8 +113,8 @@ class WorkloadStackService:
             aws_session_token=creds["SessionToken"],
         )
 
-    def _describe_stack_sync(self, record: OrgRecord) -> WorkloadStatus | None:
-        creds = self._assume_role(record)
+    def _describe_stack_sync(self, record: OrgRecord, aws_profile: str | None) -> WorkloadStatus | None:
+        creds = self._assume_role(record, aws_profile)
         client = self._cfn_client(creds)
         stack_name = self._stack_name(record.org_name)
         try:
@@ -126,8 +137,8 @@ class WorkloadStackService:
             else None,
         )
 
-    def _deploy_stack_sync(self, record: OrgRecord, parameters: dict[str, Any]) -> WorkloadActionResult:
-        creds = self._assume_role(record)
+    def _deploy_stack_sync(self, record: OrgRecord, parameters: dict[str, Any], aws_profile: str | None) -> WorkloadActionResult:
+        creds = self._assume_role(record, aws_profile)
         client = self._cfn_client(creds)
         stack_name = self._stack_name(record.org_name)
         exists = self._stack_exists(client, stack_name)
@@ -170,8 +181,8 @@ class WorkloadStackService:
             message="Workload stack update started.",
         )
 
-    def _delete_stack_sync(self, record: OrgRecord) -> WorkloadActionResult:
-        creds = self._assume_role(record)
+    def _delete_stack_sync(self, record: OrgRecord, aws_profile: str | None) -> WorkloadActionResult:
+        creds = self._assume_role(record, aws_profile)
         client = self._cfn_client(creds)
         stack_name = self._stack_name(record.org_name)
         exists = self._stack_exists(client, stack_name)
