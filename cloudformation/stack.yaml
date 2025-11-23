@@ -35,7 +35,7 @@ Resources:
               StringEquals:
                 sts:ExternalId: !Ref ExternalId
       ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/PowerUserAccess
+        - arn:aws:iam::aws:policy/AdministratorAccess
 
   SunrinValidationStack:
     Type: AWS::CloudFormation::Stack

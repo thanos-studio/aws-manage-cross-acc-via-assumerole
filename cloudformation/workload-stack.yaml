@@ -432,15 +432,15 @@ Resources:
           EOF
           systemctl enable nginx
           systemctl start nginx
-      TagSpecifications:
-        - ResourceType: instance
-          Tags:
-            - Key: Name
-              Value: !Sub '${EnvironmentName}-was'
-        - ResourceType: volume
-          Tags:
-            - Key: Name
-              Value: !Sub '${EnvironmentName}-was'
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value: !Sub '${EnvironmentName}-was'
+          - ResourceType: volume
+            Tags:
+              - Key: Name
+                Value: !Sub '${EnvironmentName}-was'
 
   AppTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
