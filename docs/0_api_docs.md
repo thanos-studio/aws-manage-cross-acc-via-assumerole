@@ -168,6 +168,43 @@
 ## 5. 포털 전용 액션 요약
 - 루트 경로 `/`는 HTML 포털로 사용자, 조직, 워크로드 배포 절차를 UI로 제공한다.
 - 내부적으로 `UserService`, `OrganisationService`, `WorkloadStackService`를 호출하며, boto3로 고객 계정 내 CloudFormation 스택을 생성/삭제한다.
+- 모든 POST 폼은 `Content-Type: application/x-www-form-urlencoded`, 히든 필드 `action=<name>`을 포함하며, 성공 시 동일 페이지를 다시 렌더링한다.
+
+### POST `/` (`action=create_user`)
+- **설명**: 운영자 식별자 발급 UI. `metadata` 필드에 JSON 문자열을 입력하면 `/api/users` 호출과 동일하게 처리한다.
+- **필드**:
+  - `metadata`: 선택사항, `{ "team": "platform" }`와 같이 JSON 오브젝트 문자열.
+- **응답 (200)**: 페이지 내 `New user_id` 블록에 새 `user_id` 출력.
+
+### POST `/` (`action=register_org`)
+- **설명**: 고객 조직 이름을 운영자와 연결하고 API Key/ExternalId를 발급.
+- **필드**:
+  - `user_id`: 1단계에서 생성한 운영자 ID.
+  - `org_name`: 영문/숫자/`-`/`_`만 허용(최대 32자).
+- **검증**: 존재하지 않는 `user_id`면 폼 에러, 중복 조직은 API에서 409.
+- **응답 (200)**: `OrgRegisterResponse` 내용을 HTML 카드로 표시.
+
+### POST `/` (`action=create_keypair`)
+- **설명**: 검증된 조직의 자격 증명으로 STS AssumeRole을 수행한 뒤 지정한 이름의 EC2 키 페어를 생성하고, 브라우저에서 `.pem`을 다운로드한다.
+- **필드**:
+  - `name`: 생성할 키 페어 이름.
+  - `user_id`, `org_name`, `api_key`: 조직 소유자 검증용.
+- **AWS 연계**: `STSService.issue_credentials` → `ec2.create_key_pair`. 조직이 검증되지 않았거나 계정 ID가 없으면 오류.
+
+### POST `/` (`action=deploy_workload`)
+- **설명**: 고객 계정에 `workload-stack.yaml` CloudFormation 스택을 배포/업데이트.
+- **필드**:
+  - `org_name`(hidden): 선택된 조직.
+  - `user_id`, `api_key`: 조직 인증.
+  - `environment_name`, `bastion_key_pair`, `bastion_allowed_cidr`, `dynamo_table_name`, `asg_desired_capacity`.
+- **AWS 연계**: `WorkloadStackService.deploy_stack`이 boto3 CloudFormation `deploy`를 호출하고, 성공 시 스택 상태/출력을 저장.
+
+### POST `/` (`action=delete_workload`)
+- **설명**: 기존 워크로드 스택을 삭제. "DELETE" 확인 텍스트를 대문자로 입력해야 한다.
+- **필드**:
+  - `org_name`(hidden)
+  - `confirm_text`: `DELETE` 입력 필수.
+- **AWS 연계**: `WorkloadStackService.delete_stack`이 고객 계정에서 CloudFormation 스택을 제거.
 
 ## 6. 에러 처리
 - 모든 API는 오류 시 `{ "detail": "message" }` 구조를 반환.
